@@ -3,5 +3,8 @@ name = "alloc_uefi"
 version = "0.1.0"
 authors = ["James Forcier <james.forcier@coreos.com>"]
 license = "Apache-2.0"
+categories = ["memory-management", "no-std"]
+keywords = ["alloc", "uefi"]
+readme = "README.md"
 
 [dependencies]
