@@ -2,8 +2,11 @@
 Rust allocator for UEFI environments.
 
 ## Usage
-Add alloc\_uefi as a dependency, and provide the following function as your
-application's entry point:
+Add alloc\_uefi as a dependency, and call the following function as part of your
+application's UEFI initialization:
 ```rust
-pub extern fn efi_main(sys_table: *const internal_uefi::SystemTable, image_handle: *mut internal_uefi::CVoid) -> isize;
+pub fn setup_alloc(system_table: *const internal_uefi::SystemTable, mem_type: MemoryType)
 ```
+
+The `mem_type` argument should be whatever the ImageDataType value is of the
+LoadedImageProtocol struct from your application's image handle.
