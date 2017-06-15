@@ -28,9 +28,9 @@ pub extern fn __rust_allocate(size: usize, _align: usize) -> *mut u8 {
 #[no_mangle]
 pub extern fn __rust_allocate_zeroed(size: usize, _align: usize) -> *mut u8 {
     let boot_services = internal_uefi::get_system_table().boot_services();
-    let ptr = boot_services.allocate_pool(size);
-    boot_services.set_mem(ptr, 0, size);
-    ptr
+    let out = boot_services.allocate_pool(size);
+    boot_services.set_mem(out, 0, size);
+    out
 }
 
 #[no_mangle]
@@ -41,7 +41,7 @@ pub extern fn __rust_deallocate(ptr: *mut u8, _old_size: usize, _align: usize) {
 #[no_mangle]
 pub extern fn __rust_reallocate(ptr: *mut u8, old_size: usize, size: usize, _align: usize) -> *mut u8 {
     let boot_services = internal_uefi::get_system_table().boot_services();
-    let out: *mut u8 = boot_services.allocate_pool(size);
+    let out = boot_services.allocate_pool(size);
     boot_services.copy_mem(out, ptr, old_size);
     boot_services.free_pool(ptr);
     out
@@ -57,30 +57,9 @@ pub extern fn __rust_usable_size(size: usize, _align: usize) -> usize {
     size
 }
 
-extern {
-    pub fn efi_main(sys_table: *const internal_uefi::SystemTable, image_handle: *mut internal_uefi::CVoid) -> isize;
-}
-
-#[no_mangle]
-pub extern "win64" fn efi_entry(image_handle: *mut internal_uefi::CVoid, system_table: *const internal_uefi::SystemTable) -> isize {
+pub fn setup_alloc(system_table: *const internal_uefi::SystemTable, mem_type: internal_uefi::MemoryType) {
     internal_uefi::set_system_table(system_table);
-    unsafe {
-        efi_main(system_table, image_handle) as isize
-    }
-}
-
-#[no_mangle]
-pub extern "C" fn memcpy(dest: *mut u8, src: *const u8, n: usize) -> *mut u8 {
-    internal_uefi::get_system_table()
-                  .boot_services()
-                  .copy_mem(dest, src, n)
-}
-
-#[no_mangle]
-pub extern "C" fn memset(buf: *mut u8, val: isize, size: usize) -> *const u8 {
-    internal_uefi::get_system_table()
-                  .boot_services()
-                  .set_mem(buf, val as u8, size)
+    internal_uefi::set_mem_type(mem_type);
 }
 
 mod internal_uefi {
@@ -97,7 +76,8 @@ mod internal_uefi {
     pub enum CVoid {}
     enum NotYetDef {}
 
-    static mut SYSTEM_TABLE: *const SystemTable = 0 as *const SystemTable;
+    pub static mut SYSTEM_TABLE: *const SystemTable = 0 as *const SystemTable;
+    pub static mut MEM_TYPE: MemoryType = MemoryType::Conventional;
 
     pub fn set_system_table(table: *const SystemTable) {
         unsafe {
@@ -111,7 +91,14 @@ mod internal_uefi {
         }
     }
 
+    pub fn set_mem_type(m: MemoryType) {
+        unsafe {
+            MEM_TYPE = m;
+        }
+    }
+
     #[repr(C)]
+    #[derive(Copy, Clone)]
     #[allow(dead_code)]
     pub enum MemoryType {
         Reserved = 0,
@@ -203,7 +190,7 @@ mod internal_uefi {
     impl BootServices {
         pub fn allocate_pool(&self, size: usize) -> *mut u8 {
             let mut ptr: *mut u8 = 0 as *mut u8;
-            unsafe { (self.allocate_pool)(MemoryType::Conventional, size, &mut ptr) };
+            unsafe { (self.allocate_pool)(MEM_TYPE, size, &mut ptr) };
             ptr
         }
 
